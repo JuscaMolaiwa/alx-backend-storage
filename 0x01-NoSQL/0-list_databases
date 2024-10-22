@@ -1,2 +1,2 @@
 # Connect to MongoDB and list all databases
-show dbs
+show dbs;
