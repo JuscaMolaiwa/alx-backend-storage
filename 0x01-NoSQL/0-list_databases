@@ -1,6 +1,2 @@
-#!/bin/bash
 # Connect to MongoDB and list all databases
-
-mongo <<EOF
 show dbs
-EOF
