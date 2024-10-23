@@ -1,82 +1,60 @@
 #!/usr/bin/env python3
-""" 
-Redis client module
+
 """
+This module provides a `CacheManager` class to leverage Redis for caching.
+It supports storing and retrieving various types of data using unique keys
+generated for each entry.
+"""
+
 import redis
-from uuid import uuid4
-from functools import wraps
-from typing import Any, Callable, Optional, Union
+import uuid
+from typing import Union
 
 
-def count_calls(method: Callable) -> Callable:
-    """ Decorator for Cache class methods to track call count"""
-    @wraps(method)
-    def wrapper(self: Any, *args, **kwargs) -> str:
-        """ Wraps called method and adds its call count redis before execution"""
-        self._redis.incr(method.__qualname__)
-        return method(self, *args, **kwargs)
-    return wrapper
+class CacheManager:
+    """
+    The `CacheManager` class handles a Redis connection and provides
+    methods for caching data in Redis.
+    """
 
+    def __init__(self):
+        """
+        Creates an instance of `CacheManager`, establishes a connection to Redis,
+        and clears the database to ensure a fresh state.
+        """
+        self.redis_instance = redis.Redis()
+        self.redis_instance.flushdb()
 
-def call_history(method: Callable) -> Callable:
-    """ Decorator for Cache class method to track args"""
-    @wraps(method)
-    def wrapper(self: Any, *args) -> str:
-        """ Wraps called method and tracks its passed argument by storing"""
-        self._redis.rpush(f'{method.__qualname__}:inputs', str(args))
-        output = method(self, *args)
-        self._redis.rpush(f'{method.__qualname__}:outputs', output)
-        return output
-    return wrapper
-
-
-def replay(fn: Callable) -> None:
-    """ Check Redis for how many times a function was called and display"""
-    client = redis.Redis()
-    calls = client.get(fn.__qualname__).decode('utf-8')
-    inputs = [input.decode('utf-8') for input in
-              client.lrange(f'{fn.__qualname__}:inputs', 0, -1)]
-    outputs = [output.decode('utf-8') for output in
-               client.lrange(f'{fn.__qualname__}:outputs', 0, -1)]
-    print(f'{fn.__qualname__} was called {calls} times:')
-    for input, output in zip(inputs, outputs):
-        print(f'{fn.__qualname__}(*{input}) -> {output}')
-
-
-class Cache:
-    """ Caching class"""
-    def __init__(self) -> None:
-        """ Initialize new cache object"""
-        self._redis = redis.Redis()
-        self._redis.flushdb()
-
-    @call_history
-    @count_calls
-    def store(self, data: Union[str, bytes,  int,  float]) -> str:
-        """ Stores data in redis with randomly generated key"""
-        key = str(uuid4())
-        client = self._redis
-        client.set(key, data)
+    def save(self, data: Union[str, bytes, int, float]) -> str:
+        """
+        Saves the provided data to Redis and returns a unique key
+        to retrieve it later.
+        """
+        key = str(uuid.uuid4())
+        self.redis_instance.set(key, data)
         return key
 
-    def get(self, key: str, fn: Optional[Callable] = None) -> Any:
-        """ Gets key's value from redis and converts"""
-        client = self._redis
-        value = client.get(key)
-        if not value:
-            return
-        if fn is int:
-            return self.get_int(value)
-        if fn is str:
-            return self.get_str(value)
-        if callable(fn):
-            return fn(value)
-        return value
+    def retrieve(self, key: str, transformer=None):
+        """
+        Fetches the value associated with the given key from Redis.
+        If a transformation function `transformer` is passed, it is
+        applied to the data before returning.
+        """
+        data = self.redis_instance.get(key)
+        if data is None:
+            return None
+        return transformer(data) if transformer else data
 
-    def get_str(self, data: bytes) -> str:
-        """ Converts bytes to string"""
-        return data.decode('utf-8')
+    def get_as_str(self, key: str) -> Union[str, None]:
+        """
+        Retrieves the value stored under the given key, decoding it as a UTF-8 string.
+        """
+        data = self.redis_instance.get(key)
+        return data.decode('utf-8') if data else None
 
-    def get_int(self, data: bytes) -> int:
-        """ Converts bytes to integers"""
-        return int(data)
+    def get_as_int(self, key: str) -> Union[int, None]:
+        """
+        Retrieves the value stored under the given key, converting it to an integer.
+        """
+        data = self.redis_instance.get(key)
+        return int(data) if data else None
