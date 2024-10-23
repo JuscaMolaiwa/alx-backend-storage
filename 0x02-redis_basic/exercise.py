@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 """
-This module provides a `CacheManager` class to leverage Redis for caching.
-It supports storing and retrieving various types of data using unique keys
-generated for each entry.
+This module provides a `Cache` class that utilizes Redis for caching data.
+The class allows storing various types of data and retrieves them using a
+unique key generated for each entry.
 """
 
 import redis
@@ -11,50 +11,59 @@ import uuid
 from typing import Union
 
 
-class CacheManager:
+class Cache:
     """
-    The `CacheManager` class handles a Redis connection and provides
-    methods for caching data in Redis.
+    The `Cache` class is responsible for managing a Redis connection
+    and providing methods to store data in the Redis database.
     """
 
     def __init__(self):
         """
-        Creates an instance of `CacheManager`, establishes a connection to Redis,
-        and clears the database to ensure a fresh state.
+        Initializes a new instance of the `Cache` class.
         """
-        self.redis_instance = redis.Redis()
-        self.redis_instance.flushdb()
+        self._redis = redis.Redis()
+        self._redis.flushdb()
 
-    def save(self, data: Union[str, bytes, int, float]) -> str:
+    def store(self, data: Union[str, bytes, int, float]) -> str:
         """
-        Saves the provided data to Redis and returns a unique key
-        to retrieve it later.
+        Stores the provided data in the Redis database and
+        returns a unique key associated with the stored data.
         """
-        key = str(uuid.uuid4())
-        self.redis_instance.set(key, data)
-        return key
+        data_key = str(uuid.uuid4())
+        self._redis.mset({data_key: data})
+        return data_key
 
-    def retrieve(self, key: str, transformer=None):
+    def get(self, key: str, fn=None):
         """
-        Fetches the value associated with the given key from Redis.
-        If a transformation function `transformer` is passed, it is
-        applied to the data before returning.
+        Retrieves the value associated with the specified key from the
+        Redis database. If the key does not exist, it returns `None`.
+        If a callable function `fn` is provided, it will be applied
+        to the retrieved data to convert it back to the desired format.
         """
-        data = self.redis_instance.get(key)
-        if data is None:
+
+        data = self._redis.get(key)
+        if not data:
             return None
-        return transformer(data) if transformer else data
 
-    def get_as_str(self, key: str) -> Union[str, None]:
-        """
-        Retrieves the value stored under the given key, decoding it as a UTF-8 string.
-        """
-        data = self.redis_instance.get(key)
-        return data.decode('utf-8') if data else None
+        if fn:
+            return fn(data)
+        return data
 
-    def get_as_int(self, key: str) -> Union[int, None]:
+    def get_str(self, key):
         """
-        Retrieves the value stored under the given key, converting it to an integer.
+        Retrieves the value associated with the specified
+        key as a UTF-8 string.
         """
-        data = self.redis_instance.get(key)
-        return int(data) if data else None
+        data = self._redis.get(key)
+        if not data:
+            return None
+        return data.decode("utf-8")
+
+    def get_int(self, key):
+        """
+        Retrieves the value associated with the specified key as an integer.
+        """
+        data = self._redis.get(key)
+        if not data:
+            return None
+        return int(data)
