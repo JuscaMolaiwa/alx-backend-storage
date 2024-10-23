@@ -12,8 +12,7 @@ def count_calls(method: Callable) -> Callable:
     """ Decorator for Cache class methods to track call count"""
     @wraps(method)
     def wrapper(self: Any, *args, **kwargs) -> str:
-        """ Wraps called method and adds its call count redis before execution
-        """
+        """ Wraps called method and adds its call count redis before execution"""
         self._redis.incr(method.__qualname__)
         return method(self, *args, **kwargs)
     return wrapper
@@ -23,8 +22,7 @@ def call_history(method: Callable) -> Callable:
     """ Decorator for Cache class method to track args"""
     @wraps(method)
     def wrapper(self: Any, *args) -> str:
-        """ Wraps called method and tracks its passed argument by storing
-            them to redis"""
+        """ Wraps called method and tracks its passed argument by storing"""
         self._redis.rpush(f'{method.__qualname__}:inputs', str(args))
         output = method(self, *args)
         self._redis.rpush(f'{method.__qualname__}:outputs', output)
@@ -33,10 +31,7 @@ def call_history(method: Callable) -> Callable:
 
 
 def replay(fn: Callable) -> None:
-    """ Check Redis for how many times a function was called and display:
-            - How many times it was called
-            - Function args and output for each call
-    """
+    """ Check Redis for how many times a function was called and display"""
     client = redis.Redis()
     calls = client.get(fn.__qualname__).decode('utf-8')
     inputs = [input.decode('utf-8') for input in
@@ -65,9 +60,7 @@ class Cache:
         return key
 
     def get(self, key: str, fn: Optional[Callable] = None) -> Any:
-        """ Gets key's value from redis and converts
-            result byte  into correct data type
-        """
+        """ Gets key's value from redis and converts"""
         client = self._redis
         value = client.get(key)
         if not value:
